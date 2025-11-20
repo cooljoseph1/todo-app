@@ -6,17 +6,25 @@ import threading
 import webbrowser
 import time
 from flask import Flask, send_from_directory, jsonify, request
+from platformdirs import PlatformDirs
+
+APP_NAME = "todo"
+dirs = PlatformDirs(APP_NAME)
 
 PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
 
-HERE = os.path.dirname(os.path.abspath(__file__))
+# Where static files live (as in your original project)
+HERE = os.path.dirname(os.path.realpath(sys.argv[0]))
 PUBLIC_DIR = os.path.join(HERE, 'public')
-DATA_DIR = os.path.join(HERE, 'data')
-TODO_PATH = os.path.join(DATA_DIR, 'todo.json')
 
+# Standard user data directory (e.g. ~/.local/share/mytodoapp on Linux)
+DATA_DIR = dirs.user_data_dir
 os.makedirs(PUBLIC_DIR, exist_ok=True)
 os.makedirs(DATA_DIR, exist_ok=True)
 
+TODO_PATH = os.path.join(DATA_DIR, 'todo.json')
+
+# Create file if missing
 if not os.path.exists(TODO_PATH):
     with open(TODO_PATH, 'w', encoding='utf-8') as f:
         json.dump([], f)
@@ -61,7 +69,5 @@ def open_browser():
     webbrowser.open(f'http://localhost:{PORT}/')
 
 if __name__ == '__main__':
-    # Open browser in a separate thread
     threading.Thread(target=open_browser, daemon=True).start()
-    # Start the server
     app.run(host='127.0.0.1', port=PORT, threaded=True)
