@@ -160,7 +160,7 @@ class TodoList extends HTMLElement {
 
         try {
             await fetch('/data/todo.json', {
-                method: 'PATCH',
+                method: 'PUT',
                 headers: { 'Content-Type': 'application/json' },
                 body: JSON.stringify(todos)
             });

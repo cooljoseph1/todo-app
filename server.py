@@ -5,45 +5,39 @@ import json
 import threading
 import webbrowser
 import time
+import argparse
 from flask import Flask, send_from_directory, jsonify, request
 from platformdirs import PlatformDirs
 
+
 APP_NAME = "todo"
-dirs = PlatformDirs(APP_NAME)
 
-PORT = int(sys.argv[1]) if len(sys.argv) > 1 else 8000
+# Placeholder – filled after parsing args
+TODO_PATH = None
 
-# Where static files live (as in your original project)
+# Where static files live
 HERE = os.path.dirname(os.path.realpath(sys.argv[0]))
 PUBLIC_DIR = os.path.join(HERE, 'public')
-
-# Standard user data directory (e.g. ~/.local/share/mytodoapp on Linux)
-DATA_DIR = dirs.user_data_dir
-os.makedirs(PUBLIC_DIR, exist_ok=True)
-os.makedirs(DATA_DIR, exist_ok=True)
-
-TODO_PATH = os.path.join(DATA_DIR, 'todo.json')
-
-# Create file if missing
-if not os.path.exists(TODO_PATH):
-    with open(TODO_PATH, 'w', encoding='utf-8') as f:
-        json.dump([], f)
 
 app = Flask(__name__, static_folder=PUBLIC_DIR, static_url_path='')
 
 @app.route('/data/todo.json', methods=['GET'])
 def get_todo():
     try:
+        # Create file if missing
+        if not os.path.exists(TODO_PATH):
+            with open(TODO_PATH, 'w', encoding='utf-8') as f:
+                json.dump([], f)
         with open(TODO_PATH, 'r', encoding='utf-8') as f:
             data = json.load(f)
         return jsonify(data)
     except Exception as e:
         return jsonify({'status': 'error', 'message': str(e)}), 500
 
-@app.route('/data/todo.json', methods=['PATCH'])
-def patch_todo():
+@app.route('/data/todo.json', methods=['PUT'])
+def put_todo():
     try:
-        payload = request.get_json(force=True)
+        payload = request.get_json(force=True, cache=False)
         if not isinstance(payload, list):
             raise ValueError('Expected JSON array')
 
@@ -64,10 +58,44 @@ def serve_static(path):
     else:
         return send_from_directory(PUBLIC_DIR, 'index.html')
 
-def open_browser():
+def open_browser(port, host):
     time.sleep(0.5)
-    webbrowser.open(f'http://localhost:{PORT}/')
+    webbrowser.open(f'http://{host}:{port}/')
 
-if __name__ == '__main__':
-    threading.Thread(target=open_browser, daemon=True).start()
-    app.run(host='127.0.0.1', port=PORT, threaded=True)
+def main():
+    parser = argparse.ArgumentParser(description="Simple TODO app")
+    parser.add_argument(
+        "file",
+        nargs="?",
+        help="Where to store the todo JSON file"
+    )
+    parser.add_argument(
+        "-p", "--port",
+        type=int,
+        default=8000,
+        help="Port to run the server on (default: 8000)"
+    )
+    parser.add_argument(
+        "--host", # No -h shortcut, because that is reserved for --help.
+        default="localhost",
+        help="Host interface to bind to (default: localhost)"
+    )
+    args = parser.parse_args()
+
+    # Resolve TODO_PATH
+    global TODO_PATH
+    if args.file:
+        TODO_PATH = os.path.abspath(args.file)
+        if os.path.isdir(TODO_PATH):
+            TODO_PATH = os.path.join(TODO_PATH, "todo.json")
+    else:
+        DATA_DIR = PlatformDirs(APP_NAME).user_data_dir
+        os.makedirs(DATA_DIR, exist_ok=True) # Ensure directory exists
+        TODO_PATH = os.path.join(DATA_DIR, "todo.json")
+
+    threading.Thread(target=open_browser, args=(args.port, args.host), daemon=True).start()
+    app.run(host=args.host, port=args.port, threaded=True)
+
+
+if __name__ == "__main__":
+    main()
